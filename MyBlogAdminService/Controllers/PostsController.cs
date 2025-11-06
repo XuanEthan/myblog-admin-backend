@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Transactions;
-using Humanizer;
+﻿using Humanizer;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -12,6 +7,13 @@ using Microsoft.IdentityModel.Tokens;
 using MyBlogAdminService.Data;
 using MyBlogAdminService.Models;
 using MyBlogAdminService.Models.dtos;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Transactions;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace MyBlogAdminService.Controllers
 {
@@ -20,10 +22,11 @@ namespace MyBlogAdminService.Controllers
     public class PostsController : ControllerBase
     {
         private readonly MyBlogAdminDbContext _context;
-
-        public PostsController(MyBlogAdminDbContext context)
+        private IHostEnvironment hostEnvironment;
+        public PostsController(MyBlogAdminDbContext context, IHostEnvironment hostEnvironment)
         {
             _context = context;
+            this.hostEnvironment = hostEnvironment;
         }
 
         // GET: api/Posts
@@ -38,12 +41,13 @@ namespace MyBlogAdminService.Controllers
             if (!string.IsNullOrEmpty(searchKey))
                 query = query.Where(p => p.Title.Contains(searchKey));
 
+
             return await query.ToListAsync();
         }
 
         // GET: api/Posts/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Post>> GetPost(int id)
+        public async Task<ActionResult<PostResponseDto>> GetPost(int id)
         {
             var post = await _context.Posts
                 .Include(p => p.Categories)
@@ -51,49 +55,84 @@ namespace MyBlogAdminService.Controllers
                 .FirstOrDefaultAsync(p => p.Id == id);
 
             if (post == null)
-            {
                 return NotFound();
-            }
 
-            return post;
+            var result = new PostResponseDto
+            {
+                Id = post.Id,
+                ImagePath = post.ImagePath,
+                Title = post.Title,
+                Content = post.Content,
+                CategoryIds = post.Categories.Select(c => c.Id).ToList(),
+                TagIds = post.Tags.Select(t => t.Id).ToList()
+            };
+
+            return Ok(result);
+        }
+
+        private async Task<String> SaveImageAsync(IFormFile ImageFile)
+        {
+            var fileName = ImageFile.FileName; // jpeg
+            var uploadsFolderPath = Path.Combine(hostEnvironment.ContentRootPath, "Uploads");
+            var imagePath = Path.Combine(uploadsFolderPath, fileName);
+
+            using (var stream = new FileStream(imagePath, FileMode.Create))
+            {
+                await ImageFile.CopyToAsync(stream);
+            }
+            return $"Uploads/{fileName}";
+        }
+
+        private void DeleteImageFile(string? path)
+        {
+            if (System.IO.File.Exists(path))
+                System.IO.File.Delete(path);
         }
 
         // PUT: api/Posts/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutPost(int id, PostUpdateDto dto)
+        public async Task<IActionResult> PutPost([FromForm] PostUpdateDto dto)
         {
-            if (id != dto.Id)
-            {
-                return NotFound();
-            }
-            
-            var post = await _context.Posts
-                                         .Include(p => p.Categories)
-                                         .Include(p => p.Tags)
-                                         .FirstOrDefaultAsync(p => p.Id == dto.Id);
-            
-            if (post == null) { return NotFound(); }
+            if (dto == null)
+                return BadRequest("Form data is invalid or missing.");
 
+            var post = await _context.Posts
+                .Include(p => p.Categories)
+                .Include(p => p.Tags)
+                .FirstOrDefaultAsync(p => p.Id == dto.Id);
+
+            if (post == null)
+                return NotFound($"Post with id {dto.Id} not found.");
 
             var foundCategories = await getCategoriesByIds(dto.CategoryIds);
             var foundTags = await getTagsByIds(dto.TagIds);
 
-            if (!foundCategories.Count.Equals(dto.CategoryIds?.Count) && !foundTags.Count.Equals(dto.TagIds?.Count))
+            if (foundCategories.Count != (dto.CategoryIds?.Count ?? 0) ||
+                foundTags.Count != (dto.TagIds?.Count ?? 0))
             {
-                return BadRequest();
+                return BadRequest("Invalid categories or tags.");
+            }
+
+            if (dto.ImageFile != null)
+            {
+                var imagePath = await SaveImageAsync(dto.ImageFile);
+                post.ImagePath = imagePath;
             }
 
             post.Title = dto.Title;
             post.Content = dto.Content;
 
-            post.Categories?.Clear();
-            foreach (var category in foundCategories)
-                post.Categories?.Add(category);
+            post.Categories ??= new List<Category>();
+            post.Tags ??= new List<Tag>();
 
-            post.Tags?.Clear();
-            foreach (var tag in foundTags)
-                post.Tags?.Add(tag);
+            post.Categories.Clear();
+            foreach (var c in foundCategories)
+                post.Categories.Add(c);
+
+            post.Tags.Clear();
+            foreach (var t in foundTags)
+                post.Tags.Add(t);
 
             try
             {
@@ -101,23 +140,32 @@ namespace MyBlogAdminService.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!PostExists(id))
-                    return NotFound("Bài viết không tồn tại hoặc đã bị xóa.");
+                if (!PostExists(dto.Id))
+                    return NotFound("Post not found or deleted.");
                 else
                     throw;
             }
+
             return NoContent();
         }
+
 
         // POST: api/Posts
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Post>> PostPost(PostCreateDto dto)
+        public async Task<ActionResult<Post>> PostPost([FromForm] PostCreateDto dto)
         {
+            if (dto == null)
+            {
+                return BadRequest("Form data is missing.");
+            }
+
+            var imagePath = dto.ImageFile != null ? await SaveImageAsync(dto.ImageFile) : null;
+
             var foundCategories = await getCategoriesByIds(dto.CategoryIds);
             var foundTags = await getTagsByIds(dto.TagIds);
 
-            if (!foundCategories.Count.Equals(dto.CategoryIds?.Count) && !foundTags.Count.Equals(dto.TagIds?.Count))
+            if (!foundCategories.Count.Equals(dto.CategoryIds?.Count) || !foundTags.Count.Equals(dto.TagIds?.Count))
             {
                 return BadRequest();
             }
@@ -125,6 +173,7 @@ namespace MyBlogAdminService.Controllers
             // Tạo Post mới
             var post = new Post
             {
+                ImagePath = imagePath,
                 Title = dto.Title,
                 Content = dto.Content,
                 Created = DateTime.Now,
@@ -149,6 +198,8 @@ namespace MyBlogAdminService.Controllers
             {
                 return NotFound();
             }
+
+            DeleteImageFile(post.ImagePath);
 
             _context.Posts.Remove(post);
             await _context.SaveChangesAsync();

@@ -4,6 +4,8 @@ namespace MyBlogAdminService.Models.dtos
 {
     public class PostCreateDto
     {
+        public IFormFile? ImageFile { get; set; } = null;
+
         [Required(ErrorMessage = "Title is required.")]
         public string? Title { get; set; }
 

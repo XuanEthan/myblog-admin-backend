@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using MyBlogAdminService.Data;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -38,5 +39,12 @@ app.UseCors("AllowFrontend"); // ✅ phải đặt trước UseHttpsRedirection 
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+
+var uploadsPath = Path.Combine(app.Environment.ContentRootPath, "Uploads");
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadsPath),
+    RequestPath = "/Uploads"
+});
 
 app.Run();

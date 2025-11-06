@@ -7,6 +7,7 @@ namespace MyBlogAdminService.Models
     {
         [Key]
         public int Id { get; set; }
+        public string? ImagePath { get; set; }
 
         [Required(ErrorMessage = "Title is required.")]
         public string? Title { get; set; }
