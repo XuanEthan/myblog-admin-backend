@@ -1,4 +1,4 @@
-﻿namespace MyBlogAdminService.Models.dtos
+﻿namespace MyBlogAdminService.Models.Dtos.PostDtos
 {
     public class PostResponseDto
     {

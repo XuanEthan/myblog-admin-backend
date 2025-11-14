@@ -1,4 +1,5 @@
 ﻿using Humanizer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -6,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MyBlogAdminService.Data;
 using MyBlogAdminService.Models;
-using MyBlogAdminService.Models.dtos;
+using MyBlogAdminService.Models.Dtos.PostDtos;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,6 +20,7 @@ namespace MyBlogAdminService.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class PostsController : ControllerBase
     {
         private readonly MyBlogAdminDbContext _context;
@@ -41,7 +43,6 @@ namespace MyBlogAdminService.Controllers
             if (!string.IsNullOrEmpty(searchKey))
                 query = query.Where(p => p.Title.Contains(searchKey));
 
-
             return await query.ToListAsync();
         }
 
@@ -63,8 +64,8 @@ namespace MyBlogAdminService.Controllers
                 ImagePath = post.ImagePath,
                 Title = post.Title,
                 Content = post.Content,
-                CategoryIds = post.Categories.Select(c => c.Id).ToList(),
-                TagIds = post.Tags.Select(t => t.Id).ToList()
+                CategoryIds = post.Categories?.Select(c => c.Id).ToList(),
+                TagIds = post.Tags?.Select(t => t.Id).ToList()
             };
 
             return Ok(result);

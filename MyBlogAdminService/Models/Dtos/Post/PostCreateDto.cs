@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace MyBlogAdminService.Models.dtos
+namespace MyBlogAdminService.Models.Dtos.PostDtos
 {
     public class PostCreateDto
     {

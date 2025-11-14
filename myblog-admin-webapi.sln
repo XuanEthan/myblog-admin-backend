@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36414.22
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyBlogAdminService", "MyBlogAdminService\MyBlogAdminService.csproj", "{822B5FBF-9303-4323-9A82-6FEBC3A2EB2A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "myblog-admin-backend", "MyBlogAdminService\myblog-admin-backend.csproj", "{822B5FBF-9303-4323-9A82-6FEBC3A2EB2A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
